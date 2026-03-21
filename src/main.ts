@@ -161,13 +161,14 @@ class TitleScene extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor('#0b1020')
-    this.add.text(400, 170, 'セミナー・ダンジョン', {
+    const centerX = this.cameras.main.width / 2
+    this.add.text(centerX, 170, 'セミナー・ダンジョン', {
       fontSize: '48px',
       color: '#d6e4ff'
     }).setOrigin(0.5)
 
-    const btn = this.add.rectangle(400, 320, 320, 64, 0x3659b8).setInteractive({ useHandCursor: true })
-    this.add.text(400, 320, '冒険を始める', { fontSize: '28px', color: '#ffffff' }).setOrigin(0.5)
+    const btn = this.add.rectangle(centerX, 320, 320, 64, 0x3659b8).setInteractive({ useHandCursor: true })
+    this.add.text(centerX, 320, '冒険を始める', { fontSize: '28px', color: '#ffffff' }).setOrigin(0.5)
 
     btn.on('pointerover', () => btn.setFillStyle(0x4c72d6))
     btn.on('pointerout', () => btn.setFillStyle(0x3659b8))
@@ -177,7 +178,7 @@ class TitleScene extends Phaser.Scene {
       this.scene.start('TownScene')
     })
 
-    this.add.text(400, 530, '↑↓←→: 移動 / Q・E: 回転 / P: パーティ', { fontSize: '20px', color: '#a9b8dd' }).setOrigin(0.5)
+    this.add.text(centerX, 530, '↑↓←→: 移動 / Q・E: 回転 / P: パーティ', { fontSize: '20px', color: '#a9b8dd' }).setOrigin(0.5)
   }
 }
 
@@ -188,16 +189,20 @@ class TownScene extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor('#102015')
-    this.add.text(400, 100, '城下町 - セミナー支部', { fontSize: '40px', color: '#d7ffe0' }).setOrigin(0.5)
-    this.add.text(400, 160, '準備を整えてダンジョンへ向かいましょう。', { fontSize: '22px', color: '#b7eac0' }).setOrigin(0.5)
+    const centerX = this.cameras.main.width / 2
+    const leftBtnX = centerX - 140
+    const rightBtnX = centerX + 140
 
-    const healBtn = this.add.rectangle(260, 320, 240, 64, 0x2f8f58).setInteractive({ useHandCursor: true })
-    this.add.text(260, 320, '宿屋で全回復', { fontSize: '24px', color: '#fff' }).setOrigin(0.5)
+    this.add.text(centerX, 100, '城下町 - セミナー支部', { fontSize: '40px', color: '#d7ffe0' }).setOrigin(0.5)
+    this.add.text(centerX, 160, '準備を整えてダンジョンへ向かいましょう。', { fontSize: '22px', color: '#b7eac0' }).setOrigin(0.5)
 
-    const goBtn = this.add.rectangle(540, 320, 240, 64, 0x4a4cb0).setInteractive({ useHandCursor: true })
-    this.add.text(540, 320, '探索開始', { fontSize: '24px', color: '#fff' }).setOrigin(0.5)
+    const healBtn = this.add.rectangle(leftBtnX, 320, 240, 64, 0x2f8f58).setInteractive({ useHandCursor: true })
+    this.add.text(leftBtnX, 320, '宿屋で全回復', { fontSize: '24px', color: '#fff' }).setOrigin(0.5)
 
-    const log = this.add.text(400, 430, '行動を選択してください。', { fontSize: '20px', color: '#d7ffe0' }).setOrigin(0.5)
+    const goBtn = this.add.rectangle(rightBtnX, 320, 240, 64, 0x4a4cb0).setInteractive({ useHandCursor: true })
+    this.add.text(rightBtnX, 320, '探索開始', { fontSize: '24px', color: '#fff' }).setOrigin(0.5)
+
+    const log = this.add.text(centerX, 430, '行動を選択してください。', { fontSize: '20px', color: '#d7ffe0' }).setOrigin(0.5)
 
     healBtn.on('pointerdown', () => {
       gameState.party.forEach((m) => {
@@ -221,7 +226,8 @@ class PartyScene extends Phaser.Scene {
   create(data: { returnScene?: string }) {
     const returnScene = data?.returnScene ?? 'TownScene'
     this.cameras.main.setBackgroundColor('#1a1f34')
-    this.add.text(400, 40, 'パーティステータス', { fontSize: '36px', color: '#e8efff' }).setOrigin(0.5)
+    const centerX = this.cameras.main.width / 2
+    this.add.text(centerX, 40, 'パーティステータス', { fontSize: '36px', color: '#e8efff' }).setOrigin(0.5)
 
     const header = '名前      職業       種族      HP      MP    STR VIT INT AGI LUCK'
     this.add.text(60, 90, header, { fontSize: '18px', color: '#c7d5ff', fontFamily: 'monospace' })
@@ -231,7 +237,7 @@ class PartyScene extends Phaser.Scene {
       this.add.text(60, 130 + idx * 60, line, { fontSize: '16px', color: '#ffffff', fontFamily: 'monospace' })
     })
 
-    this.add.text(400, 560, 'SPACE または ESC で戻る', { fontSize: '20px', color: '#9fb0df' }).setOrigin(0.5)
+    this.add.text(centerX, 560, 'SPACE または ESC で戻る', { fontSize: '20px', color: '#9fb0df' }).setOrigin(0.5)
 
     this.input.keyboard?.once('keydown-SPACE', () => this.scene.start(returnScene))
     this.input.keyboard?.once('keydown-ESC', () => this.scene.start(returnScene))
@@ -350,12 +356,13 @@ class DungeonScene extends Phaser.Scene {
       .filter((obj) => obj.name === 'viewRect')
       .forEach((obj) => obj.destroy())
 
+    const centerX = this.cameras.main.width / 2
     if (front === 0) {
-      this.add.rectangle(400, 270, 520, 320, 0x39405a).setStrokeStyle(6, 0x9aa2c4).setName('viewRect')
+      this.add.rectangle(centerX, 270, 520, 320, 0x39405a).setStrokeStyle(6, 0x9aa2c4).setName('viewRect')
       this.viewText.setText('正面: 壁')
     } else {
-      this.add.rectangle(400, 270, 520, 320, 0x1c253f).setStrokeStyle(6, 0x5e7ac7).setName('viewRect')
-      this.add.rectangle(400, 345, 300, 90, 0x111627).setName('viewRect')
+      this.add.rectangle(centerX, 270, 520, 320, 0x1c253f).setStrokeStyle(6, 0x5e7ac7).setName('viewRect')
+      this.add.rectangle(centerX, 345, 300, 90, 0x111627).setName('viewRect')
       this.viewText.setText(front === 2 ? '正面: 階段の気配' : '正面: 通路')
     }
 
@@ -409,20 +416,22 @@ class BattleScene extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor('#220c0c')
+    const centerX = this.cameras.main.width / 2
+    const leftMargin = 40
     this.enemies = Array.from({ length: randInt(1, 3) }, () => {
       const hp = randInt(20, 38)
       return { name: choice(ENEMY_NAMES), hp, maxHp: hp }
     })
 
-    this.add.text(400, 50, '戦闘開始！', { fontSize: '42px', color: '#ffd0d0' }).setOrigin(0.5)
-    this.enemyText = this.add.text(80, 120, '', { fontSize: '24px', color: '#fff1f1' })
-    this.logText = this.add.text(80, 340, '', { fontSize: '20px', color: '#ffdede', wordWrap: { width: 640 } })
+    this.add.text(centerX, 50, '戦闘開始！', { fontSize: '42px', color: '#ffd0d0' }).setOrigin(0.5)
+    this.enemyText = this.add.text(centerX, 120, '', { fontSize: '24px', color: '#fff1f1' }).setOrigin(0.5, 0)
+    this.logText = this.add.text(leftMargin, 340, '', { fontSize: '20px', color: '#ffdede', wordWrap: { width: this.cameras.main.width - leftMargin * 2 } })
 
     const buttons: Array<[string, number, () => void]> = [
-      ['攻撃', 120, () => this.playerAttack()],
-      ['防御', 280, () => this.playerDefend()],
-      ['魔法', 440, () => this.playerMagic()],
-      ['逃走', 600, () => this.playerEscape()]
+      ['攻撃', centerX - 240, () => this.playerAttack()],
+      ['防御', centerX - 80, () => this.playerDefend()],
+      ['魔法', centerX + 80, () => this.playerMagic()],
+      ['逃走', centerX + 240, () => this.playerEscape()]
     ]
 
     buttons.forEach(([label, x, cb]) => {

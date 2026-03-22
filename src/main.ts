@@ -50,6 +50,11 @@ const POTIONS = [
   { name: 'マナの薬', type: 'potion' as const, stat: 'mp', value: 20 },
 ]
 
+// Special items
+const SPECIAL_ITEMS = [
+  { name: '帰還の巻物', type: 'scroll' as const, stat: 'teleport', value: 0 },
+]
+
 const JOBS = ['ファイター', 'メイジ', 'プリースト', 'シーフ', 'サムライ', 'ビショップ']
 const RACES = ['ヒューマン', 'エルフ', 'ドワーフ', 'ノーム']
 const NAMES = ['ユウカ', 'ノア', 'アリス', 'ヒマリ', 'コトリ', 'モモイ', 'ミドリ', 'カリン', 'アスナ', 'ネル']
@@ -284,7 +289,11 @@ class TownScene extends Phaser.Scene {
     o.appendChild(d)
     const log = document.createElement('div'); log.style.cssText = 'font-size:14px;color:#d7ffe0;margin-bottom:16px;min-height:24px;'
     o.appendChild(log)
-    o.appendChild(btn('宿屋で全回復', '#2f8f58', () => { gameState.party.forEach(m => { m.stats.hp = m.stats.maxHp; m.stats.mp = m.stats.maxMp }); log.textContent = '全回復！' }))
+    o.appendChild(btn('宿屋で全回復（無料）', '#2f8f58', () => {
+      const wasHurt = gameState.party.some(m => m.stats.hp < m.stats.maxHp || m.stats.mp < m.stats.maxMp)
+      gameState.party.forEach(m => { m.stats.hp = m.stats.maxHp; m.stats.mp = m.stats.maxMp })
+      log.textContent = wasHurt ? '✨ 全員のHP/MPが全回復した！' : 'みんな元気だ！'
+    }))
     o.appendChild(btn('パーティ確認', '#3a4c80', () => { o.remove(); this.scene.start('PartyScene', { returnScene: 'TownScene' }) }))
     o.appendChild(btn('探索開始', '#4a4cb0', () => { o.remove(); this.scene.start('DungeonScene') }))
   }
@@ -421,6 +430,16 @@ class DungeonScene extends Phaser.Scene {
       b.style.gridColumn = String(col + 1); b.style.gridRow = String(row + 1)
       pad.appendChild(b)
     })
+
+    // Item button row
+    const itemRow = document.createElement('div')
+    itemRow.style.cssText = 'display:flex;gap:8px;justify-content:center;margin-bottom:16px;'
+    const useBtn = document.createElement('button')
+    useBtn.textContent = '🎒 アイテム'
+    useBtn.style.cssText = 'padding:10px 20px;font-size:13px;border:none;border-radius:10px;background:rgba(156,39,176,0.7);color:#fff;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;'
+    useBtn.addEventListener('pointerdown', e => { e.preventDefault(); this.openItemMenu() })
+    itemRow.appendChild(useBtn)
+    o.appendChild(itemRow)
     o.appendChild(pad)
 
     this.bindKeys()
@@ -494,11 +513,15 @@ class DungeonScene extends Phaser.Scene {
   private generateLoot(): InventoryItem {
     const floorBonus = gameState.floor
     const roll = Math.random()
-    if (roll < 0.3) {
+    if (roll < 0.15) {
+      // Scroll (rare, very useful)
+      const s = SPECIAL_ITEMS[0]
+      return { ...s }
+    } else if (roll < 0.35) {
       // Potion
       const p = choice(POTIONS)
       return { ...p, value: p.value + Math.floor(floorBonus * 2) }
-    } else if (roll < 0.6) {
+    } else if (roll < 0.65) {
       // Weapon
       const w = choice(WEAPONS)
       return { ...w, value: w.value + Math.floor(floorBonus * 1.5) }
@@ -507,7 +530,7 @@ class DungeonScene extends Phaser.Scene {
       const a = choice(ARMORS)
       return { ...a, value: a.value + Math.floor(floorBonus * 1.5) }
     } else {
-      // Accessory (rare)
+      // Accessory
       const ac = choice(ACCESSORIES)
       return { ...ac, value: ac.value + Math.floor(floorBonus) }
     }
@@ -517,20 +540,79 @@ class DungeonScene extends Phaser.Scene {
     const popup = document.createElement('div')
     popup.className = 'gu'
     popup.style.cssText = 'position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);animation:fadeIn 0.3s;'
-    const typeEmoji = item.type === 'weapon' ? '⚔️' : item.type === 'armor' ? '🛡️' : item.type === 'accessory' ? '💍' : '🧪'
+    const typeEmoji = item.type === 'weapon' ? '⚔️' : item.type === 'armor' ? '🛡️' : item.type === 'accessory' ? '💍' : item.type === 'scroll' ? '📜' : '🧪'
     popup.innerHTML = `
-      <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);border:2px solid #ffd700;border-radius:12px;padding:24px;text-align:center;max-width:280px;box-shadow:0 0 30px rgba(255,215,0,0.3);">
+      <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);border:2px solid ${item.type === 'scroll' ? '#00bcd4' : '#ffd700'};border-radius:12px;padding:24px;text-align:center;max-width:280px;box-shadow:0 0 30px ${item.type === 'scroll' ? 'rgba(0,188,212,0.3)' : 'rgba(255,215,0,0.3)'};">
         <div style="font-size:40px;margin-bottom:8px;">${typeEmoji}</div>
-        <div style="color:#ffd700;font-size:18px;font-weight:bold;margin-bottom:4px;">${item.name}</div>
-        <div style="color:#aaa;font-size:12px;margin-bottom:8px;">${item.type === 'potion' ? '消耗品' : item.type === 'weapon' ? '武器' : item.type === 'armor' ? '防具' : 'アクセサリー'}</div>
-        <div style="color:#4ade80;font-size:13px;">${item.stat} +${item.value}</div>
-        <button style="margin-top:16px;background:#ffd700;color:#000;border:none;border-radius:6px;padding:8px 24px;font-size:14px;font-weight:bold;cursor:pointer;">OK</button>
+        <div style="color:${item.type === 'scroll' ? '#00bcd4' : '#ffd700'};font-size:18px;font-weight:bold;margin-bottom:4px;">${item.name}</div>
+        <div style="color:#aaa;font-size:12px;margin-bottom:8px;">${item.type === 'potion' ? '消耗品' : item.type === 'weapon' ? '武器' : item.type === 'armor' ? '防具' : item.type === 'scroll' ? '巻物' : 'アクセサリー'}</div>
+        ${item.type !== 'scroll' ? `<div style="color:#4ade80;font-size:13px;">${item.stat} +${item.value}</div>` : '<div style="color:#80deea;font-size:13px;">町へ一瞬で帰還</div>'}
+        <button style="margin-top:16px;background:${item.type === 'scroll' ? '#00bcd4' : '#ffd700'};color:#000;border:none;border-radius:6px;padding:8px 24px;font-size:14px;font-weight:bold;cursor:pointer;">OK</button>
       </div>
       <style>@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }</style>
     `
     document.body.appendChild(popup)
     popup.querySelector('button')!.addEventListener('click', () => popup.remove())
     setTimeout(() => { if (popup.parentNode) popup.remove() }, 4000)
+  }
+
+  private openItemMenu() {
+    const usable = gameState.inventory.filter(i => i.type === 'potion' || i.type === 'scroll')
+    if (usable.length === 0) { this.logEl.textContent = '使えるアイテムがない。'; return }
+
+    const modal = document.createElement('div')
+    modal.className = 'gu'
+    modal.style.cssText = 'position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.8);'
+    const panel = document.createElement('div')
+    panel.style.cssText = 'background:#1a1f34;border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:20px;max-width:320px;width:90%;max-height:70vh;overflow-y:auto;'
+    const title = document.createElement('div')
+    title.textContent = '🎒 アイテム'
+    title.style.cssText = 'font-size:18px;color:#fff;font-weight:bold;margin-bottom:12px;text-align:center;'
+    panel.appendChild(title)
+
+    usable.forEach((item) => {
+      const typeEmoji = item.type === 'scroll' ? '📜' : '🧪'
+      const el = document.createElement('div')
+      el.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px;background:rgba(255,255,255,0.05);border-radius:8px;margin-bottom:6px;cursor:pointer;transition:background 0.2s;'
+      const desc = item.type === 'scroll' ? '町へ帰還' : `${item.name} (${item.stat}+${item.value})`
+      el.innerHTML = `<span style="font-size:20px;">${typeEmoji}</span><span style="color:#fff;flex:1;font-size:13px;">${desc}</span><span style="color:#4ade80;font-size:11px;">使用</span>`
+      el.addEventListener('pointerdown', () => {
+        const realIdx = gameState.inventory.indexOf(item)
+        if (realIdx === -1) return
+        gameState.inventory.splice(realIdx, 1)
+        if (item.type === 'scroll') {
+          this.logEl.textContent = '帰還の巻物を使った！'
+          gameState.party.forEach(m => { m.stats.hp = Math.min(m.stats.maxHp, m.stats.hp + Math.floor(m.stats.maxHp * 0.3)) })
+          modal.remove()
+          this.time.delayedCall(600, () => { document.querySelectorAll('.gu').forEach(e => e.remove()); this.logEl.remove(); this.scene.start('TownScene') })
+        } else if (item.type === 'potion') {
+          const target = [...gameState.party].sort((a, b) => (a.stats.hp / a.stats.maxHp) - (b.stats.hp / b.stats.maxHp))[0]
+          if (item.stat === 'hp') {
+            const heal = Math.min(item.value, target.stats.maxHp - target.stats.hp)
+            target.stats.hp += heal
+            this.logEl.textContent = `${target.name}に${item.name}！HP+${heal}`
+          } else if (item.stat === 'mp') {
+            const restore = Math.min(item.value, target.stats.maxMp - target.stats.mp)
+            target.stats.mp += restore
+            this.logEl.textContent = `${target.name}に${item.name}！MP+${restore}`
+          }
+          modal.remove()
+        }
+      })
+      el.addEventListener('pointerenter', () => el.style.background = 'rgba(255,255,255,0.1)')
+      el.addEventListener('pointerleave', () => el.style.background = 'rgba(255,255,255,0.05)')
+      panel.appendChild(el)
+    })
+
+    const closeBtn = document.createElement('button')
+    closeBtn.textContent = '閉じる'
+    closeBtn.style.cssText = 'width:100%;margin-top:12px;padding:10px;background:rgba(255,255,255,0.1);color:#ccc;border:none;border-radius:8px;font-size:14px;cursor:pointer;'
+    closeBtn.addEventListener('pointerdown', () => modal.remove())
+    panel.appendChild(closeBtn)
+
+    modal.appendChild(panel)
+    document.body.appendChild(modal)
+    modal.addEventListener('pointerdown', (e) => { if (e.target === modal) modal.remove() })
   }
 
   private renderView() {
@@ -702,7 +784,28 @@ class BattleScene extends Phaser.Scene {
 
   private playerAttack() { const t = choice(this.living()); if (!t) return; const a = gameState.party.reduce((s, m) => s + randInt(1, Math.max(2, m.stats.str / 2)), 0); const d = Math.max(1, Math.floor(a / 3)); t.hp = Math.max(0, t.hp - d); this.pushLog(`攻撃！${t.name}に${d}ダメージ。`); this.refreshUI(); this.after() }
   private playerDefend() { gameState.party.forEach(m => m.defending = true); this.pushLog('防御体勢。'); this.after() }
-  private playerMagic() { const c = gameState.party.find(m => m.stats.mp >= 3); if (!c) { this.pushLog('MP不足！'); return } c.stats.mp -= 3; const t = choice(this.living()); const d = randInt(8, 16) + Math.floor(c.stats.int / 3); t.hp = Math.max(0, t.hp - d); this.pushLog(`${c.name}の魔法！${t.name}に${d}ダメージ。`); this.refreshUI(); this.after() }
+  private playerMagic() {
+    const caster = gameState.party.find(m => m.stats.hp > 0 && m.stats.mp >= 3)
+    if (!caster) { this.pushLog('MP不足！'); return }
+    // Check if party needs healing
+    const hurt = gameState.party.find(m => m.stats.hp > 0 && m.stats.hp < m.stats.maxHp)
+    if (hurt && Math.random() < 0.5) {
+      // Heal
+      caster.stats.mp -= 3
+      const heal = randInt(10, 20) + Math.floor(caster.stats.int / 2)
+      const actual = Math.min(heal, hurt.maxHp - hurt.stats.hp)
+      hurt.stats.hp += actual
+      this.pushLog(`${caster.name}の回復魔法！${hurt.name}のHP+${actual}！`)
+    } else {
+      // Attack magic
+      caster.stats.mp -= 3
+      const t = choice(this.living()); if (!t) return
+      const d = randInt(8, 16) + Math.floor(caster.stats.int / 3)
+      t.hp = Math.max(0, t.hp - d)
+      this.pushLog(`${caster.name}の攻撃魔法！${t.name}に${d}ダメージ。`)
+    }
+    this.refreshUI(); this.after()
+  }
   private playerEscape() { if (Math.random() < 0.5) { this.pushLog('逃走成功！'); this.time.delayedCall(600, () => this.back()) } else { this.pushLog('逃走失敗！'); this.enemyTurn() } }
 
   private after() { this.refreshUI(); if (!this.living().length) { this.pushLog('全滅！'); this.time.delayedCall(800, () => this.back()); return } this.enemyTurn() }

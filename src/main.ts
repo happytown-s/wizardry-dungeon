@@ -18,12 +18,113 @@ type GameState = {
   floor: number; mapSize: number; map: number[][]
   playerX: number; playerY: number; direction: Direction
   party: PartyMember[]; encounterRate: number; battleReturnScene?: string; use3D: boolean
+  openedChests: Set<string>
+  inventory: InventoryItem[]
 }
+
+type InventoryItem = { name: string; type: 'weapon' | 'armor' | 'accessory' | 'potion'; stat: string; value: number; equipped?: boolean }
+
+const WEAPONS = [
+  { name: '短剣', type: 'weapon' as const, stat: 'str', value: 3 },
+  { name: 'ブロードソード', type: 'weapon' as const, stat: 'str', value: 6 },
+  { name: '魔法の杖', type: 'weapon' as const, stat: 'int', value: 5 },
+  { name: 'フレイル', type: 'weapon' as const, stat: 'str', value: 8 },
+  { name: '魔導書', type: 'weapon' as const, stat: 'int', value: 10 },
+]
+
+const ARMORS = [
+  { name: '革の鎧', type: 'armor' as const, stat: 'vit', value: 3 },
+  { name: 'チェインメイル', type: 'armor' as const, stat: 'vit', value: 5 },
+  { name: 'プレートアーマー', type: 'armor' as const, stat: 'vit', value: 8 },
+]
+
+const ACCESSORIES = [
+  { name: '命の指輪', type: 'accessory' as const, stat: 'maxHp', value: 15 },
+  { name: '知恵の首飾り', type: 'accessory' as const, stat: 'maxMp', value: 8 },
+  { name: '疾風のブーツ', type: 'accessory' as const, stat: 'agi', value: 5 },
+]
+
+const POTIONS = [
+  { name: '回復の薬', type: 'potion' as const, stat: 'hp', value: 30 },
+  { name: '上回復の薬', type: 'potion' as const, stat: 'hp', value: 60 },
+  { name: 'マナの薬', type: 'potion' as const, stat: 'mp', value: 20 },
+]
 
 const JOBS = ['ファイター', 'メイジ', 'プリースト', 'シーフ', 'サムライ', 'ビショップ']
 const RACES = ['ヒューマン', 'エルフ', 'ドワーフ', 'ノーム']
 const NAMES = ['ユウカ', 'ノア', 'アリス', 'ヒマリ', 'コトリ', 'モモイ', 'ミドリ', 'カリン', 'アスナ', 'ネル']
 const ENEMY_NAMES = ['スライム', 'ゴブリン', 'スケルトン', 'オーク', 'シャドウ']
+
+// Monster visual definitions: CSS-only creatures with shaking animation
+const MONSTER_STYLES: Record<string, { shape: string; color: string; glow: string; shakeIntensity: number; size: number }> = {
+  'スライム': { shape: 'blob', color: '#4ade80', glow: '#166534', shakeIntensity: 3, size: 60 },
+  'ゴブリン': { shape: 'blocky', color: '#a78bfa', glow: '#4c1d95', shakeIntensity: 5, size: 55 },
+  'スケルトン': { shape: 'thin', color: '#e2e8f0', glow: '#475569', shakeIntensity: 2, size: 65 },
+  'オーク': { shape: 'big', color: '#f87171', glow: '#7f1d1d', shakeIntensity: 1.5, size: 75 },
+  'シャドウ': { shape: 'ghost', color: '#818cf8', glow: '#1e1b4b', shakeIntensity: 4, size: 60 },
+}
+
+function monsterHTML(name: string, hpPercent: number, index: number): string {
+  const ms = MONSTER_STYLES[name] || MONSTER_STYLES['スライム']
+  const shake = hpPercent < 30 ? ms.shakeIntensity * 3 : ms.shakeIntensity
+  const opacity = hpPercent < 30 ? 0.5 : 1
+  const dur = 0.3 + Math.random() * 0.2
+  const delay = index * 0.1
+
+  let shapeCSS = ''
+  switch(ms.shape) {
+    case 'blob':
+      shapeCSS = `width:${ms.size}px;height:${ms.size*0.8}px;background:${ms.color};border-radius:50% 50% 50% 50% / 60% 60% 40% 40%;box-shadow:0 0 20px ${ms.glow},inset 0 -8px 16px rgba(0,0,0,0.3);`
+      break
+    case 'blocky':
+      shapeCSS = `width:${ms.size}px;height:${ms.size*0.9}px;background:${ms.color};border-radius:8px;clip-path:polygon(20% 0%,80% 0%,100% 30%,100% 100%,0% 100%,0% 30%);box-shadow:0 0 15px ${ms.glow};`
+      break
+    case 'thin':
+      shapeCSS = `width:${ms.size*0.6}px;height:${ms.size}px;background:${ms.color};border-radius:30%;box-shadow:0 0 20px ${ms.glow};opacity:0.9;`
+      // Skull face
+      shapeCSS += `background: linear-gradient(180deg, ${ms.color} 0%, ${ms.color} 100%);`
+      break
+    case 'big':
+      shapeCSS = `width:${ms.size}px;height:${ms.size}px;background:${ms.color};border-radius:12px;box-shadow:0 0 25px ${ms.glow},inset 0 -10px 20px rgba(0,0,0,0.3);`
+      break
+    case 'ghost':
+      shapeCSS = `width:${ms.size}px;height:${ms.size}px;background:${ms.color};border-radius:50% 50% 30% 30%;box-shadow:0 0 25px ${ms.glow};opacity:0.7;`
+      break
+  }
+
+  // Eyes (common)
+  const eyeSize = ms.shape === 'big' ? 8 : 5
+  const eyes = `<div style="position:absolute;top:30%;left:30%;width:${eyeSize}px;height:${eyeSize}px;background:#fff;border-radius:50%;box-shadow:${eyeSize+6}px 0 0 #fff;"></div>
+    <div style="position:absolute;top:32%;left:32%;width:${eyeSize-2}px;height:${eyeSize-2}px;background:#111;border-radius:50%;box-shadow:${eyeSize+6}px 0 0 #111;"></div>`
+
+  // HP bar
+  const hpBar = `<div style="width:100%;max-width:${ms.size}px;height:4px;background:#333;border-radius:2px;margin-top:6px;">
+    <div style="width:${hpPercent}%;height:100%;background:${hpPercent > 50 ? '#4ade80' : hpPercent > 25 ? '#fbbf24' : '#ef4444'};border-radius:2px;transition:width 0.3s;"></div>
+  </div>`
+
+  return `
+    <div style="display:flex;flex-direction:column;align-items:center;opacity:${opacity};animation:monsterShake${index} ${dur}s ease-in-out ${delay}s infinite alternate;">
+      <div style="position:relative;${shapeCSS}animation:monsterPulse 2s ease-in-out infinite;">
+        ${eyes}
+      </div>
+      <div style="font-size:11px;color:#ccc;margin-top:2px;">${name}</div>
+      ${hpBar}
+    </div>
+    <style>
+      @keyframes monsterShake${index} {
+        0% { transform: translate(0, 0) rotate(0deg); }
+        25% { transform: translate(${shake}px, ${-shake/2}px) rotate(${shake/2}deg); }
+        50% { transform: translate(${-shake}px, ${shake/2}px) rotate(${-shake/2}deg); }
+        75% { transform: translate(${shake/2}px, ${shake}px) rotate(${shake/3}deg); }
+        100% { transform: translate(${-shake/2}px, ${-shake}px) rotate(${-shake/3}deg); }
+      }
+      @keyframes monsterPulse {
+        0%, 100% { filter: brightness(1); }
+        50% { filter: brightness(1.15); }
+      }
+    </style>
+  `
+}
 
 const dirVectors: Record<Direction, { dx: number; dy: number; label: string }> = {
   0: { dx: 0, dy: -1, label: '北' },
@@ -34,7 +135,7 @@ const dirVectors: Record<Direction, { dx: number; dy: number; label: string }> =
 
 const gameState: GameState = {
   floor: 1, mapSize: 10, map: [], playerX: 1, playerY: 1, direction: 0,
-  party: [], encounterRate: 0.05, use3D: false
+  party: [], encounterRate: 0.05, use3D: false, openedChests: new Set<string>(), inventory: []
 }
 
 function randInt(min: number, max: number) { return Math.floor(Math.random() * (max - min + 1)) + min }
@@ -111,18 +212,6 @@ function genFloor(seed = 99): string {
   return c.toDataURL()
 }
 
-function genCeiling(seed = 77): string {
-  const c = document.createElement('canvas'); c.width = 256; c.height = 256
-  const x = c.getContext('2d')!; const r = seededRng(seed)
-  x.fillStyle = '#0e0c0a'; x.fillRect(0, 0, 256, 256)
-  for (let i = 0; i < 4; i++) {
-    const by = i * 64 + 4, v = Math.floor(r() * 10 - 5)
-    x.fillStyle = `rgb(${18+v},${15+v},${12+v})`; x.fillRect(0, by, 256, 56)
-    for (let j = 0; j < 15; j++) { x.strokeStyle = `rgba(${22+v},${18+v},${14+v},0.5)`; x.lineWidth = 0.5; x.beginPath(); const gx = r() * 256, gy = by + r() * 56; x.moveTo(gx, gy); x.lineTo(gx + r() * 30, gy + (r() - 0.5) * 2); x.stroke() }
-  }
-  return c.toDataURL()
-}
-
 const texWall = genWall()
 const texFloor = genFloor()
 
@@ -149,6 +238,16 @@ function generateDungeon(size: number) {
   let stx = randInt(1, size - 2), sty = randInt(1, size - 2)
   while ((stx === sx && sty === sy) || map[sty][stx] === 0) { stx = randInt(1, size - 2); sty = randInt(1, size - 2) }
   map[sty][stx] = 2
+  // Place 2-4 treasure chests on path cells
+  const numChests = randInt(2, 4)
+  for (let i = 0; i < numChests; i++) {
+    let tx = randInt(1, size - 2), ty = randInt(1, size - 2)
+    let tries = 0
+    while ((map[ty][tx] !== 1 || (tx === sx && ty === sy) || (tx === stx && ty === sty)) && tries < 50) {
+      tx = randInt(1, size - 2); ty = randInt(1, size - 2); tries++
+    }
+    if (tries < 50) map[ty][tx] = 3 // 3 = treasure chest
+  }
   return { map, startX: sx, startY: sy }
 }
 
@@ -201,6 +300,25 @@ class PartyScene extends Phaser.Scene {
     const o = overlay('#1a1f34'); o.style.justifyContent = 'flex-start'; o.style.padding = '40px 16px'; o.style.overflowY = 'auto'
     const t = document.createElement('div'); t.textContent = 'パーティステータス'; t.style.cssText = 'font-size:24px;color:#e8efff;margin-bottom:20px;position:sticky;top:0;background:#1a1f34;padding-bottom:8px;z-index:1;'
     o.appendChild(t)
+    // Inventory section
+    const invTitle = document.createElement('div'); invTitle.textContent = '📦 所持品'; invTitle.style.cssText = 'font-size:16px;color:#ffd700;margin:16px 0 8px;font-weight:bold;'
+    o.appendChild(invTitle)
+    if (gameState.inventory.length === 0) {
+      const empty = document.createElement('div'); empty.textContent = '（なし）'; empty.style.cssText = 'color:#666;font-size:13px;margin-bottom:8px;'
+      o.appendChild(empty)
+    } else {
+      const invList = document.createElement('div'); invList.style.cssText = 'width:100%;max-width:360px;margin-bottom:12px;'
+      gameState.inventory.forEach((item, i) => {
+        const typeEmoji = item.type === 'weapon' ? '⚔️' : item.type === 'armor' ? '🛡️' : item.type === 'accessory' ? '💍' : '🧪'
+        const el = document.createElement('div'); el.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;background:rgba(255,255,255,0.03);border-radius:6px;margin-bottom:4px;font-size:13px;'
+        el.innerHTML = `<span>${typeEmoji}</span><span style="color:#fff;flex:1;">${item.name}</span><span style="color:#4ade80;font-size:11px;">${item.stat}+${item.value}</span>`
+        invList.appendChild(el)
+      })
+      o.appendChild(invList)
+    }
+    // Party members
+    const ptTitle = document.createElement('div'); ptTitle.textContent = '👥 メンバー'; ptTitle.style.cssText = 'font-size:16px;color:#e8efff;margin:12px 0 8px;font-weight:bold;'
+    o.appendChild(ptTitle)
     gameState.party.forEach((m, i) => {
       const card = document.createElement('div'); card.style.cssText = 'background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:12px;margin-bottom:8px;width:100%;max-width:360px;'
       const hp = Math.round(m.stats.hp / m.stats.maxHp * 100)
@@ -352,8 +470,67 @@ class DungeonScene extends Phaser.Scene {
     if (tile === 0) { this.logEl.textContent = '壁だ。'; return }
     gameState.playerX = nx; gameState.playerY = ny
     if (tile === 2) { this.logEl.textContent = '階段！次の階層へ…'; resetDungeon(gameState.floor + 1); this.renderView(); return }
+    // Treasure chest
+    if (tile === 3) {
+      const key = `${nx},${ny}`
+      if (!gameState.openedChests.has(key)) {
+        gameState.openedChests.add(key)
+        gameState.map[ny][nx] = 1 // Open chest → becomes path
+        // Generate loot based on floor
+        const loot = this.generateLoot()
+        gameState.inventory.push(loot)
+        this.logEl.textContent = `宝箱！${loot.name}を手に入れた！`
+        // Flash effect
+        this.showTreasurePopup(loot)
+      } else {
+        this.logEl.textContent = '（空の宝箱）'
+      }
+      this.renderView(); return
+    }
     if (Math.random() < gameState.encounterRate) { gameState.battleReturnScene = 'DungeonScene'; this.scene.start('BattleScene'); return }
     this.logEl.textContent = '進んだ。'; this.renderView()
+  }
+
+  private generateLoot(): InventoryItem {
+    const floorBonus = gameState.floor
+    const roll = Math.random()
+    if (roll < 0.3) {
+      // Potion
+      const p = choice(POTIONS)
+      return { ...p, value: p.value + Math.floor(floorBonus * 2) }
+    } else if (roll < 0.6) {
+      // Weapon
+      const w = choice(WEAPONS)
+      return { ...w, value: w.value + Math.floor(floorBonus * 1.5) }
+    } else if (roll < 0.85) {
+      // Armor
+      const a = choice(ARMORS)
+      return { ...a, value: a.value + Math.floor(floorBonus * 1.5) }
+    } else {
+      // Accessory (rare)
+      const ac = choice(ACCESSORIES)
+      return { ...ac, value: ac.value + Math.floor(floorBonus) }
+    }
+  }
+
+  private showTreasurePopup(item: InventoryItem) {
+    const popup = document.createElement('div')
+    popup.className = 'gu'
+    popup.style.cssText = 'position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);animation:fadeIn 0.3s;'
+    const typeEmoji = item.type === 'weapon' ? '⚔️' : item.type === 'armor' ? '🛡️' : item.type === 'accessory' ? '💍' : '🧪'
+    popup.innerHTML = `
+      <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);border:2px solid #ffd700;border-radius:12px;padding:24px;text-align:center;max-width:280px;box-shadow:0 0 30px rgba(255,215,0,0.3);">
+        <div style="font-size:40px;margin-bottom:8px;">${typeEmoji}</div>
+        <div style="color:#ffd700;font-size:18px;font-weight:bold;margin-bottom:4px;">${item.name}</div>
+        <div style="color:#aaa;font-size:12px;margin-bottom:8px;">${item.type === 'potion' ? '消耗品' : item.type === 'weapon' ? '武器' : item.type === 'armor' ? '防具' : 'アクセサリー'}</div>
+        <div style="color:#4ade80;font-size:13px;">${item.stat} +${item.value}</div>
+        <button style="margin-top:16px;background:#ffd700;color:#000;border:none;border-radius:6px;padding:8px 24px;font-size:14px;font-weight:bold;cursor:pointer;">OK</button>
+      </div>
+      <style>@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }</style>
+    `
+    document.body.appendChild(popup)
+    popup.querySelector('button')!.addEventListener('click', () => popup.remove())
+    setTimeout(() => { if (popup.parentNode) popup.remove() }, 4000)
   }
 
   private renderView() {
@@ -375,6 +552,13 @@ class DungeonScene extends Phaser.Scene {
         ind.className = 'stairs-indicator'
         ind.style.cssText = 'position:absolute;bottom:20%;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:#5c8f40;font-size:16px;padding:8px 16px;border-radius:8px;border:1px solid #5c8f40;z-index:200;'
         ind.textContent = '▼ 階段'
+        c3.appendChild(ind)
+      } else if (front === 3) {
+        const isOpen = gameState.openedChests.has(`${fx},${fy}`)
+        const ind = document.createElement('div')
+        ind.className = 'treasure-indicator'
+        ind.style.cssText = `position:absolute;bottom:20%;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:${isOpen ? '#5a4a3a' : '#ffd700'};font-size:16px;padding:8px 16px;border-radius:8px;border:1px solid ${isOpen ? '#5a4a3a' : '#ffd700'};z-index:200;`
+        ind.textContent = isOpen ? '📦 空' : '📦 宝箱'
         c3.appendChild(ind)
       }
     } else {
@@ -441,6 +625,16 @@ class DungeonScene extends Phaser.Scene {
         html += `<div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 50%, transparent 25%, rgba(0,0,0,0.8) 100%);pointer-events:none;"></div>`
 
         if (isStairs) html += `<div style="position:absolute;bottom:25%;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:#5c8f40;font-size:16px;padding:8px 16px;border-radius:8px;border:1px solid #5c8f40;z-index:10;">▼ 階段</div>`
+        if (front === 3) {
+          const isOpen = gameState.openedChests.has(`${fx},${fy}`)
+          html += `<div style="position:absolute;bottom:30%;left:50%;transform:translateX(-50%);z-index:10;">
+            <div style="width:48px;height:36px;background:${isOpen ? '#5a4a3a' : '#d4a017'};border:2px solid ${isOpen ? '#3a2a1a' : '#ffd700'};border-radius:4px;position:relative;box-shadow:0 0 ${isOpen ? '5px' : '15px'} ${isOpen ? '#2a1a0a' : 'rgba(255,215,0,0.5)'};">
+              ${!isOpen ? `<div style="position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:20px;height:8px;background:#ffd700;border-radius:2px 2px 0 0;"></div>
+              <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:8px;height:8px;background:#fff;border-radius:50%;box-shadow:0 0 5px #ffd700;"></div>` : ''}
+            </div>
+            <div style="color:${isOpen ? '#666' : '#ffd700'};font-size:11px;text-align:center;margin-top:2px;">${isOpen ? '空の箱' : '📦 宝箱'}</div>
+          </div>`
+        }
       }
       this.viewEl.innerHTML = html
     }
@@ -454,7 +648,7 @@ class DungeonScene extends Phaser.Scene {
     const size = gameState.mapSize; const cell = Math.max(4, Math.floor(80 / size))
     let svg = `<svg width="${cell * size}" height="${cell * size}" style="display:block;">`
     for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
-      const t = gameState.map[y][x]; const c = t === 0 ? '#1f2433' : t === 2 ? '#5c8f40' : '#9aa6bf'
+      const t = gameState.map[y][x]; const ck = `${x},${y}`; const c = t === 0 ? '#1f2433' : t === 2 ? '#5c8f40' : t === 3 && gameState.openedChests.has(ck) ? '#5a4a3a' : t === 3 ? '#ffd700' : '#9aa6bf'
       svg += `<rect x="${x * cell}" y="${y * cell}" width="${cell - 1}" height="${cell - 1}" fill="${c}"/>`
     }
     const px = gameState.playerX * cell + cell / 2, py = gameState.playerY * cell + cell / 2
@@ -496,7 +690,10 @@ class BattleScene extends Phaser.Scene {
   }
 
   private refreshUI() {
-    this.enemyEl.innerHTML = this.enemies.map((e, i) => `<div style="color:#fff1f1;font-size:14px;">${i + 1}. ${e.name} <span style="color:#ff8888;">HP:${e.hp}/${e.maxHp}</span></div>`).join('')
+    // Monster visuals
+    this.enemyEl.innerHTML = `<div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;padding:12px 0;">
+      ${this.enemies.map((e, i) => monsterHTML(e.name, Math.round(e.hp / e.maxHp * 100), i)).join('')}
+    </div>`
     this.partyEl.innerHTML = gameState.party.map((m, i) => `<div style="color:#c8e0ff;font-size:12px;">${i + 1}.${m.name} <span style="color:#ff8888;">HP${m.stats.hp}</span> <span style="color:#8888ff;">MP${m.stats.mp}</span></div>`).join('')
   }
 

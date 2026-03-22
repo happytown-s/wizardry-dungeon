@@ -4,7 +4,7 @@ export function computeVisibleCells(
     map: number[][],
     camX: number,
     camY: number,
-    camRotDeg: number,
+    _camRotDeg: number,
     maxDistance: number = 8
 ): Set<string> {
     const rows = map.length;
@@ -41,9 +41,9 @@ export function computeVisibleCells(
             if (visited.has(key)) continue;
             visited.add(key);
             visible.add(key); // Always make it visible
-            // Only continue flood through path cells (not walls)
+            // Only continue flood through non-wall cells
             if (map[ny][nx] !== 0) {
-                queue.push([nx, ny, dist + 1]);
+              queue.push([nx, ny, dist + 1]);
             }
         }
     }
